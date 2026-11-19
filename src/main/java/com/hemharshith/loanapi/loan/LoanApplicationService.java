@@ -1,32 +1,30 @@
 package com.hemharshith.loanapi.loan;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Business logic layer. The controller talks to this class, never to storage.
- * TEMPORARY: data is kept in a Map in memory, so it disappears on restart.
- * In the next step this is replaced by PostgreSQL via Spring Data JPA.
+ * Business logic layer, now backed by PostgreSQL through the repository.
+ * The controller is unchanged: it still calls the same three methods and
+ * gets the same response type back.
  */
-// @Service tells Spring to create one instance of this class and
-// hand it to any class that asks for it (this is "dependency injection").
 @Service
 public class LoanApplicationService {
 
-    private final Map<Long, LoanApplicationResponse> store = new ConcurrentHashMap<>();
-    // Generates 1, 2, 3... safely even if two requests arrive together.
-    private final AtomicLong idCounter = new AtomicLong(0);
+    private final LoanApplicationRepository repository;
 
+    // Spring injects the repository it generated (constructor injection).
+    public LoanApplicationService(LoanApplicationRepository repository) {
+        this.repository = repository;
+    }
+
+    // @Transactional: everything in the method succeeds together or is rolled back.
+    @Transactional
     public LoanApplicationResponse create(LoanApplicationRequest request) {
-        Long id = idCounter.incrementAndGet();
-        LoanApplicationResponse saved = new LoanApplicationResponse(
-                id,
+        LoanApplication entity = new LoanApplication(
                 request.applicantName(),
                 request.age(),
                 request.loanAmount(),
@@ -34,19 +32,38 @@ public class LoanApplicationService {
                 request.purpose(),
                 LoanStatus.SUBMITTED, // every new application starts here
                 Instant.now());
-        store.put(id, saved);
-        return saved;
+        // save() runs the INSERT; the returned object has the new id filled in.
+        LoanApplication saved = repository.save(entity);
+        return toResponse(saved);
     }
 
+    // readOnly = true tells the database we only read, which allows optimisations.
+    @Transactional(readOnly = true)
     public LoanApplicationResponse getById(Long id) {
-        LoanApplicationResponse found = store.get(id);
-        if (found == null) {
-            throw new LoanNotFoundException(id);
-        }
-        return found;
+        return repository.findById(id)
+                .map(this::toResponse)
+                .orElseThrow(() -> new LoanNotFoundException(id));
     }
 
+    @Transactional(readOnly = true)
     public List<LoanApplicationResponse> getAll() {
-        return new ArrayList<>(store.values());
+        return repository.findAll().stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    // Converts the database object into the JSON-shaped response object.
+    // Keeping them separate means a table change does not automatically
+    // change what the API returns to clients.
+    private LoanApplicationResponse toResponse(LoanApplication e) {
+        return new LoanApplicationResponse(
+                e.getId(),
+                e.getApplicantName(),
+                e.getAge(),
+                e.getLoanAmount(),
+                e.getDurationMonths(),
+                e.getPurpose(),
+                e.getStatus(),
+                e.getCreatedAt());
     }
 }

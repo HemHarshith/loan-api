@@ -1,0 +1,60 @@
+# Runs on every push to main and on every pull request.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    # A fresh Ubuntu machine provided by GitHub for each run.
+    runs-on: ubuntu-latest
+
+    # A throwaway PostgreSQL next to the job, so the full-context test
+    # (LoanApiApplicationTests) has a real database, like on your laptop.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: loanapi
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci_password
+        ports:
+          - 5432:5432
+        # Wait until the database is ready before the steps start.
+        options: >-
+          --health-cmd "pg_isready -U postgres -d loanapi"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    # Values the app reads from environment variables (see application.properties).
+    # These are made-up CI-only values for a database that disappears after the run.
+    # Never put a real secret in this file.
+    env:
+      DB_PASSWORD: ci_password
+      JWT_SECRET: ci-only-secret-key-at-least-32-characters-long
+
+    steps:
+      # 1. Download the code from the repo.
+      - uses: actions/checkout@v4
+
+      # 2. Install Java 21 and cache Maven downloads between runs.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      # 3. Files committed from Windows may lack the "executable" flag on Linux.
+      - name: Make mvnw executable
+        run: chmod +x mvnw
+
+      # 4. Compile, run ALL tests, build the jar. Any failing test fails the run.
+      - name: Build and test
+        run: ./mvnw -B verify
+
+      # 5. Prove the Dockerfile still builds.
+      - name: Build Docker image
+        run: docker build -t loan-api .

@@ -19,7 +19,6 @@ import jakarta.persistence.Table;
  * Hibernate checks this class against the table at startup because
  * ddl-auto=validate, so a mismatch stops the app with a clear message.
  */
-// @Entity marks the class as a database table model.
 @Entity
 @Table(name = "loan_application")
 public class LoanApplication {
@@ -45,7 +44,6 @@ public class LoanApplication {
     private String purpose;
 
     // STRING stores the enum NAME ("SUBMITTED") instead of its position (0).
-    // Names stay correct if someone reorders the enum later.
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private LoanStatus status;
@@ -70,6 +68,12 @@ public class LoanApplication {
         this.purpose = purpose;
         this.status = status;
         this.createdAt = createdAt;
+    }
+
+    // The one allowed change after creation. We expose a named method instead
+    // of a general setStatus so the intent is clear and other fields stay fixed.
+    public void changeStatus(LoanStatus newStatus) {
+        this.status = newStatus;
     }
 
     public Long getId() {

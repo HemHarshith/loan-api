@@ -7,21 +7,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Business logic layer, now backed by PostgreSQL through the repository.
- * The controller is unchanged: it still calls the same three methods and
- * gets the same response type back.
+ * Business logic layer, backed by PostgreSQL through the repository.
  */
 @Service
 public class LoanApplicationService {
 
     private final LoanApplicationRepository repository;
 
-    // Spring injects the repository it generated (constructor injection).
     public LoanApplicationService(LoanApplicationRepository repository) {
         this.repository = repository;
     }
 
-    // @Transactional: everything in the method succeeds together or is rolled back.
     @Transactional
     public LoanApplicationResponse create(LoanApplicationRequest request) {
         LoanApplication entity = new LoanApplication(
@@ -32,12 +28,10 @@ public class LoanApplicationService {
                 request.purpose(),
                 LoanStatus.SUBMITTED, // every new application starts here
                 Instant.now());
-        // save() runs the INSERT; the returned object has the new id filled in.
         LoanApplication saved = repository.save(entity);
         return toResponse(saved);
     }
 
-    // readOnly = true tells the database we only read, which allows optimisations.
     @Transactional(readOnly = true)
     public LoanApplicationResponse getById(Long id) {
         return repository.findById(id)
@@ -52,9 +46,28 @@ public class LoanApplicationService {
                 .toList();
     }
 
+    // Load the row, change one field, return the result.
+    // We never call save(): inside a @Transactional method Hibernate notices
+    // the entity changed ("dirty checking") and runs the UPDATE when the
+    // transaction commits.
+    @Transactional
+    public LoanApplicationResponse updateStatus(Long id, LoanStatus newStatus) {
+        LoanApplication entity = repository.findById(id)
+                .orElseThrow(() -> new LoanNotFoundException(id));
+        entity.changeStatus(newStatus);
+        return toResponse(entity);
+    }
+
+    @Transactional
+    public void delete(Long id) {
+        // Check first so a missing id gives our clean 404, not a database error.
+        if (!repository.existsById(id)) {
+            throw new LoanNotFoundException(id);
+        }
+        repository.deleteById(id);
+    }
+
     // Converts the database object into the JSON-shaped response object.
-    // Keeping them separate means a table change does not automatically
-    // change what the API returns to clients.
     private LoanApplicationResponse toResponse(LoanApplication e) {
         return new LoanApplicationResponse(
                 e.getId(),

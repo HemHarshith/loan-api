@@ -1,0 +1,45 @@
+# docker-compose runs several containers together as one system:
+# the PostgreSQL database and our app.
+services:
+
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: loanapi
+      POSTGRES_USER: postgres
+      # ":?" stops Compose with a clear message if the variable is not set.
+      # The value comes from your terminal ($env:DB_PASSWORD), never from this file.
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in this terminal first}
+    ports:
+      # Host port 5433 -> container port 5432. We use 5433 so it does not
+      # clash with the PostgreSQL already installed on your laptop (5432).
+      - "5433:5432"
+    volumes:
+      # Named volume: the data survives container restarts.
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # Reports "healthy" only when the database accepts connections.
+      test: ["CMD-SHELL", "pg_isready -U postgres -d loanapi"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    depends_on:
+      db:
+        # Start the app only after the database is healthy.
+        condition: service_healthy
+    environment:
+      # Spring maps SPRING_DATASOURCE_URL to spring.datasource.url and
+      # overrides application.properties. "db" is the service name above:
+      # containers on the same Compose network reach each other by name.
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/loanapi
+      SPRING_DATASOURCE_USERNAME: postgres
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in this terminal first}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in this terminal first}
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:

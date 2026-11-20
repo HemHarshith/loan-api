@@ -8,6 +8,7 @@ import javax.crypto.spec.SecretKeySpec;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -30,6 +31,10 @@ import com.nimbusds.jose.jwk.source.ImmutableSecret;
  * method-level rules such as @PreAuthorize("hasRole('ADMIN')").
  */
 @Configuration
+// Switches on Spring Security's web support and creates the HttpSecurity
+// builder our filter chain needs. Spring Boot does this automatically in
+// the full app, but not inside the @WebMvcTest slice, so we say it explicitly.
+@EnableWebSecurity
 // Turns on @PreAuthorize / @PostAuthorize checks on our controller methods.
 @EnableMethodSecurity
 public class SecurityConfig {

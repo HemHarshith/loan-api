@@ -78,6 +78,28 @@ public class LoanApplicationService {
         return toResponse(entity);
     }
 
+    /**
+     * Applies a score result that arrived from Kafka. Returns true only if the
+     * status actually changed.
+     *
+     * Safe to run twice for the same message (idempotent): the status changes only
+     * while the loan is still SUBMITTED, so a duplicate delivery changes nothing.
+     * A loan that no longer exists is skipped instead of throwing, because
+     * retrying would never succeed.
+     */
+    @Transactional
+    public boolean applyScore(Long loanId, String band) {
+        LoanApplication entity = repository.findById(loanId).orElse(null);
+        if (entity == null) {
+            return false;
+        }
+        if (entity.getStatus() == LoanStatus.SUBMITTED && "HIGH".equals(band)) {
+            entity.changeStatus(LoanStatus.UNDER_REVIEW);
+            return true;
+        }
+        return false;
+    }
+
     @Transactional
     public void delete(Long id) {
         // Check first so a missing id gives our clean 404, not a database error.

@@ -40,7 +40,10 @@ class LoanApplicationServiceTest {
     // Runs before EVERY test, so each test starts with a fresh service.
     @BeforeEach
     void setUp() {
-        service = new LoanApplicationService(repository);
+        // The service now also needs an event publisher. A Mockito mock is enough here:
+        // these tests check the service logic, not Kafka.
+        service = new LoanApplicationService(repository,
+                org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class));
     }
 
     // Helper: builds an entity like one loaded from the database.

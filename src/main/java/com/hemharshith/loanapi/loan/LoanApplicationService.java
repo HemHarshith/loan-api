@@ -3,6 +3,7 @@ package com.hemharshith.loanapi.loan;
 import java.time.Instant;
 import java.util.List;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,8 +15,15 @@ public class LoanApplicationService {
 
     private final LoanApplicationRepository repository;
 
-    public LoanApplicationService(LoanApplicationRepository repository) {
+    // Lets this class announce events inside the app. A listener
+    // (LoanEventPublisher)
+    // turns the loan event into a Kafka message after the transaction commits.
+    private final ApplicationEventPublisher events;
+
+    public LoanApplicationService(LoanApplicationRepository repository,
+            ApplicationEventPublisher events) {
         this.repository = repository;
+        this.events = events;
     }
 
     @Transactional
@@ -29,6 +37,18 @@ public class LoanApplicationService {
                 LoanStatus.SUBMITTED, // every new application starts here
                 Instant.now());
         LoanApplication saved = repository.save(entity);
+
+        // Announce "a loan was submitted". Because the listener waits for
+        // AFTER_COMMIT, the Kafka message is sent only if the save succeeds.
+        events.publishEvent(new LoanSubmittedEvent(
+                saved.getId(),
+                saved.getApplicantName(),
+                saved.getAge(),
+                saved.getLoanAmount(),
+                saved.getDurationMonths(),
+                saved.getPurpose(),
+                saved.getCreatedAt().toString()));
+
         return toResponse(saved);
     }
 

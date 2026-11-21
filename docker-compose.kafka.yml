@@ -1,0 +1,9 @@
+# docker-compose.kafka.yml
+# Learning setup: ONE Kafka broker running in KRaft mode (Kafka manages itself, no ZooKeeper).
+# Separate from docker-compose.yml so the working app setup is not touched.
+services:
+  kafka:
+    image: apache/kafka:3.9.0    # pinned version so it behaves the same every time
+    container_name: loan-kafka
+    ports:
+      - "9092:9092"              # lets your laptop talk to Kafka on localhost:9092

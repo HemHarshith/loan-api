@@ -30,4 +30,13 @@ USER appuser
 
 # Documentation only: the app listens on 8080.
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+
+# Healthcheck: Docker marks the container "healthy" once port 8080 accepts connections.
+# start-period gives the app 40 seconds to boot before failures start to count.
+# This checks that the app is listening, not that the database is reachable.
+HEALTHCHECK --interval=15s --timeout=5s --start-period=40s --retries=5 \
+  CMD bash -c 'exec 3<>/dev/tcp/localhost/8080' || exit 1
+
+# MaxRAMPercentage: let Java use up to 75% of the memory the container is given,
+# instead of a small default.
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "app.jar"]

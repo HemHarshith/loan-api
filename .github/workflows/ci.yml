@@ -6,6 +6,11 @@ on:
     branches: [main]
   pull_request:
 
+# What the built-in GITHUB_TOKEN may do. "packages: write" lets us push the image.
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   build-and-test:
     # A fresh Ubuntu machine provided by GitHub for each run.
@@ -58,3 +63,21 @@ jobs:
       # 5. Prove the Dockerfile still builds.
       - name: Build Docker image
         run: docker build -t loan-api .
+
+      # 6. Publish the image, but only for pushes to main (not for pull requests),
+      #    and only after the tests above passed. Registry names must be lowercase.
+      - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push image to GitHub Container Registry
+        if: github.event_name == 'push'
+        run: |
+          docker tag loan-api ghcr.io/hemharshith/loan-api:latest
+          docker tag loan-api ghcr.io/hemharshith/loan-api:${{ github.sha }}
+          docker push ghcr.io/hemharshith/loan-api:latest
+          docker push ghcr.io/hemharshith/loan-api:${{ github.sha }}
